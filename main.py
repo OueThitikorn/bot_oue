@@ -50,7 +50,7 @@ previous_songs = {}      # เพลงที่เคยเล่นแล้�
 # ฟังก์ชันโหลด stream จาก yt-dlp
 def get_stream_url(url):
     ydl_opts = {
-        'format': 'bestaudio',
+        'format': 'bestaudio[ext=m4a]/bestaudio/best',
         'quiet': True,
         'no_warnings': True,
         'default_search': 'auto'
@@ -58,9 +58,11 @@ def get_stream_url(url):
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
+            if 'entries' in info:
+                info = info['entries'][0]
             return info['url'], info.get('title', 'Unknown Title')
     except Exception as e:
-        print(f"⚠️ Error loading URL: {e}")
+        print(f"⚠️ Error extracting info: {e}")
         return None, None
 
 
