@@ -41,19 +41,21 @@ previous_songs = {}      # เพลงที่เคยเล่นแล้�
 def get_stream_url(url):
     ydl_opts = {
         'format': 'bestaudio[ext=m4a]/bestaudio/best',
-        'quiet': True,
-        'no_warnings': True,
-        'default_search': 'auto'
+        'quiet': False,  # เปลี่ยนเป็น False เพื่อดู log
+        'no_warnings': False,
+        'default_search': 'auto',
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
+            print(f"[DEBUG] Extracted info: {info}")  # เพิ่ม log
             if 'entries' in info:
                 info = info['entries'][0]
             return info['url'], info.get('title', 'Unknown Title')
     except Exception as e:
         print(f"⚠️ Error extracting info: {e}")
         return None, None
+
 
 
 async def play_next(ctx):
@@ -150,23 +152,35 @@ class AddSongModal(Modal, title="เพิ่มเพลง"):
         url = self.url_input.value
         guild_id = interaction.guild.id
 
+        # ✅ ตรวจสอบลิงก์ก่อน
+        if not url.startswith(("https://youtube.com",  "https://www.youtube.com",  "https://youtu.be")): 
+            return await interaction.followup.send("⚠️ รองรับเฉพาะลิงก์ YouTube", ephemeral=True)
+
         # ✅ ตรวจสอบและ defer ก่อนใช้งาน
         if not interaction.response.is_done():
             await interaction.response.defer(ephemeral=True)
         else:
-            await interaction.followup.send("⚠️ การโต้ตอบหมดอายุแล้ว", ephemeral=True)
-            return
+            return await interaction.followup.send("⚠️ การโต้ตอบหมดอายุแล้ว", ephemeral=True)
 
+        # ✅ โหลดเพลง
         stream_url, title = get_stream_url(url)
         if not stream_url:
-            return await interaction.followup.send("⚠️ ไม่สามารถโหลดเพลงได้", ephemeral=True)
+            return await interaction.followup.send(
+                "⚠️ ไม่สามารถโหลดเพลงได้\n"
+                "อาจเกิดจาก:\n"
+                "- ลิงก์ไม่ถูกต้อง\n"
+                "- เพลงถูกลบหรือถูกจำกัดสิทธิ์\n"
+                "- ปัญหาการเชื่อมต่อเซิร์ฟเวอร์",
+                ephemeral=True
+            )
 
+        # ✅ เพิ่มเพลงลงคิว
         if guild_id not in song_queue:
             song_queue[guild_id] = []
-
         song_queue[guild_id].append((url, title))
         await interaction.followup.send(f"📥 เพิ่มเข้าในคิว: {title}", ephemeral=True)
 
+        # ✅ เชื่อมต่อกับห้องเสียง
         voice_client = interaction.guild.voice_client
         if not voice_client or not voice_client.is_connected():
             if interaction.user.voice:
@@ -174,12 +188,9 @@ class AddSongModal(Modal, title="เพิ่มเพลง"):
             else:
                 return await interaction.followup.send("❗ คุณต้องอยู่ในห้องเสียงก่อน", ephemeral=True)
 
+        # ✅ เริ่มเล่นเพลงถ้าไม่มีเพลงกำลังเล่น
         if not voice_client.is_playing() and not voice_client.is_paused():
             await play_next(interaction)
-
-
-from discord.ui import View, Button, Modal
-import discord
 
 # ตัวแปร Global
 song_queue = {}          # คิวเพลง
