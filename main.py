@@ -57,6 +57,10 @@ def get_stream_url(url):
         print(f"⚠️ Error extracting info: {e}")
         return None, None
 
+url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+stream_url, title = get_stream_url(url)
+print(stream_url)  # ควรได้ URL ของเสียง 
+
 
 async def play_next(ctx):
     guild_id = ctx.guild.id
