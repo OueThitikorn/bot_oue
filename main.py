@@ -355,6 +355,4 @@ async def say(ctx, *, message: str = None):
     await ctx.send(embed=embed)
 
 server_on()
-if __name__ == "__main__":
-    
-    bot.run(os.getenv('TOKEN'))
+bot.run(os.getenv('TOKEN'))
