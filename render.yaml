@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: discord-bot
+    env: python
+    buildCommand: "./setup.sh"
+    startCommand: "python main.py"
+    port: 8000

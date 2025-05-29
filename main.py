@@ -7,15 +7,17 @@ import asyncio
 import os
 from myserver import server_on
 
-
-print("Opus loaded?", discord.opus.is_loaded())
 # โหลดไลบรารี Opus
 try:
     if not discord.opus.is_loaded():
         try:
-            discord.opus.load_opus("libopus-0.dll")  # Windows
+            # Windows
+            discord.opus.load_opus("libopus-0.dll")
+            print("✅ โหลด Opus สำหรับ Windows เรียบร้อย")
         except:
-            discord.opus.load_opus("libopus.so")  # Linux
+            # Linux
+            discord.opus.load_opus("libopus.so")
+            print("✅ โหลด Opus สำหรับ Linux เรียบร้อย")
 except Exception as e:
     print(f"❌ ไม่สามารถโหลด Opus ได้: {e}")
 
