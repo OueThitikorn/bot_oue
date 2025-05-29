@@ -6,18 +6,29 @@ import yt_dlp
 import asyncio
 import os
 from myserver import server_on
+from flask import Flask
+from threading import Thread
+
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "I'm alive"
+
+def run():
+  app.run(host='0.0.0.0', port=8080)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
 
 # โหลดไลบรารี Opus
 try:
     if not discord.opus.is_loaded():
         try:
-            # Windows
-            discord.opus.load_opus("libopus-0.dll")
-            print("✅ โหลด Opus สำหรับ Windows เรียบร้อย")
+            discord.opus.load_opus("libopus-0.dll")  # Windows
         except:
-            # Linux
-            discord.opus.load_opus("libopus.so")
-            print("✅ โหลด Opus สำหรับ Linux เรียบร้อย")
+            discord.opus.load_opus("libopus.so")  # Linux
 except Exception as e:
     print(f"❌ ไม่สามารถโหลด Opus ได้: {e}")
 
@@ -192,7 +203,7 @@ class FullCommandButtonView(View):
     @discord.ui.button(label="รายการเพลง", style=discord.ButtonStyle.success, emoji="📋", row=0)
     async def queue_button(self, interaction: discord.Interaction, button: Button):
         if interaction.user != self.ctx.author:
-            await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ใช้งานปุ่มนี้", ephemeral=True)
+            await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ใช้งานปุ่มนี้ กรุณาพิมพ์คำสั่ง  !p  เพิ่มเริ่มใช้งาน", ephemeral=True)
             return
 
         guild_id = interaction.guild.id
@@ -207,16 +218,16 @@ class FullCommandButtonView(View):
     @discord.ui.button(label="เพิ่มเพลง", style=discord.ButtonStyle.blurple, emoji="➕", row=0)
     async def add_song_button(self, interaction: discord.Interaction, button: Button):
         if interaction.user != self.ctx.author:
-            await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ใช้งานปุ่มนี้", ephemeral=True)
+            await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ใช้งานปุ่มนี้ กรุณาพิมพ์คำสั่ง  !p  เพิ่มเริ่มใช้งาน", ephemeral=True)
             return
 
         await interaction.response.send_modal(AddSongModal())
-        
-        
+
+
     @discord.ui.button(label="เล่น / หยุด", style=discord.ButtonStyle.secondary, emoji="⏯️", row=0)
     async def play_pause_button(self, interaction: discord.Interaction, button: Button):
         if interaction.user != self.ctx.author:
-            await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ใช้งานปุ่มนี้", ephemeral=True)
+            await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ใช้งานปุ่มนี้ กรุณาพิมพ์คำสั่ง  !p  เพิ่มเริ่มใช้งาน", ephemeral=True)
             return
 
         if self.ctx.voice_client.is_paused():
@@ -230,7 +241,7 @@ class FullCommandButtonView(View):
     @discord.ui.button(label="ลูป‍", style=discord.ButtonStyle.secondary, emoji="🔁", row=0)
     async def loop_button(self, interaction: discord.Interaction, button: Button):
         if interaction.user != self.ctx.author:
-            await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ใช้งานปุ่มนี้", ephemeral=True)
+            await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ใช้งานปุ่มนี้ กรุณาพิมพ์คำสั่ง  !p  เพิ่มเริ่มใช้งาน", ephemeral=True)
             return
 
         guild_id = interaction.guild.id
@@ -242,7 +253,7 @@ class FullCommandButtonView(View):
     @discord.ui.button(label="ย้อนกลับ", style=discord.ButtonStyle.grey, emoji="⏮️", row=1)
     async def back_button(self, interaction: discord.Interaction, button: Button):
         if interaction.user != self.ctx.author:
-            await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ใช้งานปุ่มนี้", ephemeral=True)
+            await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ใช้งานปุ่มนี้ กรุณาพิมพ์คำสั่ง  !p  เพิ่มเริ่มใช้งาน", ephemeral=True)
             return
 
         guild_id = interaction.guild.id
@@ -269,12 +280,12 @@ class FullCommandButtonView(View):
         voice_client.play(source, after=lambda e: self.ctx.bot.loop.create_task(play_next(interaction)))
         previous_songs[guild_id].append((prev_url, prev_title))
         await interaction.followup.send(f"⏮️ ย้อนกลับไป: {title}", ephemeral=True)
-        
+
 
     @discord.ui.button(label="ข้าม", style=discord.ButtonStyle.grey, emoji="⏭️", row=1)
     async def skip_button(self, interaction: discord.Interaction, button: Button):
         if interaction.user != self.ctx.author:
-            await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ใช้งานปุ่มนี้", ephemeral=True)
+            await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ใช้งานปุ่มนี้ กรุณาพิมพ์คำสั่ง  !p  เพิ่มเริ่มใช้งาน", ephemeral=True)
             return
 
         if self.ctx.voice_client and self.ctx.voice_client.is_playing():
@@ -287,7 +298,7 @@ class FullCommandButtonView(View):
     @discord.ui.button(label="ออก", style=discord.ButtonStyle.red, emoji="⏹️", row=1)
     async def stop_button(self, interaction: discord.Interaction, button: Button):
         if interaction.user != self.ctx.author:
-            await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ใช้งานปุ่มนี้", ephemeral=True)
+            await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ใช้งานปุ่มนี้ กรุณาพิมพ์คำสั่ง  !p  เพิ่มเริ่มใช้งาน", ephemeral=True)
             return
 
         guild_id = interaction.guild.id
@@ -357,6 +368,7 @@ async def say(ctx, *, message: str = None):
     )
     embed.set_author(name="📢 แจ้งเตือนข่าวสาร", icon_url=ctx.bot.user.avatar.url)
     await ctx.send(embed=embed)
+
 
 server_on()
 bot.run(os.getenv('TOKEN'))
