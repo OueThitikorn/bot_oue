@@ -146,49 +146,37 @@ class AddSongModal(Modal, title="เพิ่มเพลง"):
         required=True,
     )
 
+    async def add_song_task(interaction, url, guild_id):
+        stream_url, title = get_stream_url(url)
+        if not stream_url:
+            try:
+                await interaction.followup.send("⚠️ ไม่สามารถโหลดเพลงได้", ephemeral=True)
+            except discord.errors.NotFound:
+                print("❌ Interaction หมดอายุขณะโหลดเพลง")
+            return
+
+        if guild_id not in song_queue:
+            song_queue[guild_id] = []
+        song_queue[guild_id].append((url, title))
+        try:
+            await interaction.followup.send(f"📥 เพิ่มเข้าในคิว: {title}", ephemeral=True)
+        except discord.errors.NotFound:
+            print("❌ Interaction หมดอายุหลังโหลดเพลง")
+
+        # ต่อห้องเสียงและเล่นเพลง...
+        # ...
+
+    # ใน on_submit:
     async def on_submit(self, interaction: discord.Interaction):
         url = self.url_input.value
         guild_id = interaction.guild.id
 
-        # ✅ ตรวจสอบลิงก์ก่อน
-        if not url.startswith(("https://youtube.com",  "https://www.youtube.com",  "https://youtu.be")): 
-            return await interaction.followup.send("⚠️ รองรับเฉพาะลิงก์ YouTube", ephemeral=True)
-
-        # ✅ ตรวจสอบและ defer ก่อนใช้งาน
         if not interaction.response.is_done():
             await interaction.response.defer(ephemeral=True)
         else:
-            return await interaction.followup.send("⚠️ การโต้ตอบหมดอายุแล้ว", ephemeral=True)
+            return
 
-        # ✅ โหลดเพลง
-        stream_url, title = get_stream_url(url)
-        if not stream_url:
-            return await interaction.followup.send(
-                "⚠️ ไม่สามารถโหลดเพลงได้\n"
-                "อาจเกิดจาก:\n"
-                "- ลิงก์ไม่ถูกต้อง\n"
-                "- เพลงถูกลบหรือถูกจำกัดสิทธิ์\n"
-                "- ปัญหาการเชื่อมต่อเซิร์ฟเวอร์",
-                ephemeral=True
-            )
-
-        # ✅ เพิ่มเพลงลงคิว
-        if guild_id not in song_queue:
-            song_queue[guild_id] = []
-        song_queue[guild_id].append((url, title))
-        await interaction.followup.send(f"📥 เพิ่มเข้าในคิว: {title}", ephemeral=True)
-
-        # ✅ เชื่อมต่อกับห้องเสียง
-        voice_client = interaction.guild.voice_client
-        if not voice_client or not voice_client.is_connected():
-            if interaction.user.voice:
-                voice_client = await interaction.user.voice.channel.connect()
-            else:
-                return await interaction.followup.send("❗ คุณต้องอยู่ในห้องเสียงก่อน", ephemeral=True)
-
-        # ✅ เริ่มเล่นเพลงถ้าไม่มีเพลงกำลังเล่น
-        if not voice_client.is_playing() and not voice_client.is_paused():
-            await play_next(interaction)
+        asyncio.create_task(self.add_song_task(interaction, url, guild_id))
 
 
 # ตัวแปร Global
