@@ -22,16 +22,6 @@ def keep_alive():
     t = Thread(target=run)
     t.start()
 
-# โหลดไลบรารี Opus
-try:
-    if not discord.opus.is_loaded():
-        try:
-            discord.opus.load_opus("libopus-0.dll")  # Windows
-        except:
-            discord.opus.load_opus("libopus.so")  # Linux
-except Exception as e:
-    print(f"❌ ไม่สามารถโหลด Opus ได้: {e}")
-
 # กำหนด intents
 intents = discord.Intents.default()
 intents.message_content = True
@@ -53,7 +43,9 @@ def get_stream_url(url):
         'format': 'bestaudio[ext=m4a]/bestaudio/best',
         'quiet': True,
         'no_warnings': True,
-        'default_search': 'auto'
+        'default_search': 'auto',
+        'cookiefile': 'cookies.txt',  # เพิ่ม cookie ถ้าจำเป็น
+        'age_limit': 999,             # อนุญาตอายุสูงสุด 999+
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
