@@ -43,14 +43,12 @@ def get_stream_url(url):
         'format': 'bestaudio[ext=m4a]/bestaudio/best',
         'quiet': True,
         'no_warnings': True,
-        'default_search': 'auto',
-        'cookiefile': 'cookies.txt',  # เพิ่ม cookie ถ้าจำเป็น
-        'age_limit': 999,             # อนุญาตอายุสูงสุด 999+
+        'default_search': 'auto'  # รองรับการค้นหาเพลงโดยตรง
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
-            if 'entries' in info:
+            if 'entries' in info:  # สำหรับ playlist
                 info = info['entries'][0]
             return info['url'], info.get('title', 'Unknown Title')
     except Exception as e:
@@ -148,52 +146,39 @@ class AddSongModal(Modal, title="เพิ่มเพลง"):
         required=True,
     )
 
-class AddSongModal(Modal, title="เพิ่มเพลง"):
-    url_input = TextInput(
-        label="ลิงก์เพลง",
-        placeholder="https://youtube.com/watch?v=... ",
-        required=True,
-    )
-
     async def on_submit(self, interaction: discord.Interaction):
         url = self.url_input.value
         guild_id = interaction.guild.id
 
-        # ตรวจสอบ URL 
-        if not url.startswith("https://")  or "youtube.com" not in url:
-            return await interaction.followup.send("⚠️ กรุณาใส่ลิงก์ YouTube ที่ถูกต้อง", ephemeral=True)
+        # ✅ ตรวจสอบลิงก์ก่อน
+        if not url.startswith(("https://youtube.com",  "https://www.youtube.com",  "https://youtu.be")): 
+            return await interaction.followup.send("⚠️ รองรับเฉพาะลิงก์ YouTube", ephemeral=True)
 
-        # Defer response
+        # ✅ ตรวจสอบและ defer ก่อนใช้งาน
         if not interaction.response.is_done():
             await interaction.response.defer(ephemeral=True)
         else:
             return await interaction.followup.send("⚠️ การโต้ตอบหมดอายุแล้ว", ephemeral=True)
 
-        # โหลดเพลงพร้อม Timeout
-        try:
-            stream_url, title = await asyncio.wait_for(
-                asyncio.to_thread(get_stream_url, url), 
-                timeout=10
-            )
-        except asyncio.TimeoutError:
-            return await interaction.followup.send("⏰ เวลาในการโหลดเพลงหมด", ephemeral=True)
-
+        # ✅ โหลดเพลง
+        stream_url, title = get_stream_url(url)
         if not stream_url:
-            return await interaction.followup.send("⚠️ ไม่สามารถโหลดเพลงได้", ephemeral=True)
+            return await interaction.followup.send(
+                "⚠️ ไม่สามารถโหลดเพลงได้\n"
+                "อาจเกิดจาก:\n"
+                "- ลิงก์ไม่ถูกต้อง\n"
+                "- เพลงถูกลบหรือถูกจำกัดสิทธิ์\n"
+                "- ปัญหาการเชื่อมต่อเซิร์ฟเวอร์",
+                ephemeral=True
+            )
 
-        # สร้างคิวถ้ายังไม่มี
+        # ✅ เพิ่มเพลงลงคิว
         if guild_id not in song_queue:
             song_queue[guild_id] = []
-
-        # ตรวจสอบว่ามีเพลงนี้ในคิวแล้วหรือไม่
-        if (url, title) in song_queue[guild_id]:
-            return await interaction.followup.send("ℹ️ เพลงนี้มีอยู่ในคิวแล้ว", ephemeral=True)
-
-        # เพิ่มเพลงเข้าคิว
         song_queue[guild_id].append((url, title))
         await interaction.followup.send(f"📥 เพิ่มเข้าในคิว: {title}", ephemeral=True)
 
-        # เชื่อมต่อ Voice Client
+        # ✅ เชื่อมต่อกับห้องเสียง
         voice_client = interaction.guild.voice_client
         if not voice_client or not voice_client.is_connected():
             if interaction.user.voice:
@@ -201,13 +186,10 @@ class AddSongModal(Modal, title="เพิ่มเพลง"):
             else:
                 return await interaction.followup.send("❗ คุณต้องอยู่ในห้องเสียงก่อน", ephemeral=True)
 
-        # เล่นเพลงถ้าไม่มีอะไรกำลังเล่น
+        # ✅ เริ่มเล่นเพลงถ้าไม่มีเพลงกำลังเล่น
         if not voice_client.is_playing() and not voice_client.is_paused():
             await play_next(interaction)
 
-
-from discord.ui import View, Button, Modal
-import discord
 
 # ตัวแปร Global
 song_queue = {}          # คิวเพลง
