@@ -44,6 +44,7 @@ def get_stream_url(url):
         'quiet': False,  # เปลี่ยนเป็น False เพื่อดู log
         'no_warnings': False,
         'default_search': 'auto',
+        'noplaylist': True,
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
