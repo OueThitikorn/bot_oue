@@ -7,6 +7,8 @@ import asyncio
 import os
 from myserver import server_on
 
+
+print("Opus loaded?", discord.opus.is_loaded())
 # โหลดไลบรารี Opus
 try:
     if not discord.opus.is_loaded():
