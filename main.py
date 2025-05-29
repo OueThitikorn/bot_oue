@@ -43,12 +43,12 @@ def get_stream_url(url):
         'format': 'bestaudio[ext=m4a]/bestaudio/best',
         'quiet': True,
         'no_warnings': True,
-        'default_search': 'auto'  # รองรับการค้นหาเพลงโดยตรง
+        'default_search': 'auto'
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
-            if 'entries' in info:  # สำหรับ playlist
+            if 'entries' in info:
                 info = info['entries'][0]
             return info['url'], info.get('title', 'Unknown Title')
     except Exception as e:
@@ -58,45 +58,85 @@ def get_stream_url(url):
 
 async def play_next(ctx):
     guild_id = ctx.guild.id
+
     if loop_status.get(guild_id, False) and current_song.get(guild_id):
         url, title = current_song[guild_id]
         stream_url, _ = get_stream_url(url)
         if not stream_url:
-            try:
-                if isinstance(ctx, commands.Context):
-                    await ctx.send("⚠️ ไม่สามารถโหลดเพลงซ้ำได้")
-                else:
-                    await ctx.followup.send("⚠️ ไม่สามารถโหลดเพลงซ้ำได้")
-            except discord.errors.NotFound:
-                pass
+            if isinstance(ctx, commands.Context):
+                await ctx.send("⚠️ ไม่สามารถโหลดเพลงซ้ำได้")
+            else:
+                await ctx.followup.send("⚠️ ไม่สามารถโหลดเพลงซ้ำได้")
             return
 
+        source = discord.FFmpegPCMAudio(stream_url)
+        voice_client = ctx.guild.voice_client
+
+        if voice_client is None or not voice_client.is_connected():
+            if ctx.author.voice:
+                voice_client = await ctx.author.voice.channel.connect()
+            else:
+                if isinstance(ctx, commands.Context):
+                    await ctx.send("❗ คุณต้องอยู่ในห้องเสียงก่อนเล่นเพลง")
+                else:
+                    await ctx.followup.send("❗ คุณต้องอยู่ในห้องเสียงก่อนเล่นเพลง")
+                return
+
+        voice_client.play(source, after=lambda e: bot.loop.create_task(play_next(ctx)))
+        if isinstance(ctx, commands.Context):
+            await ctx.send(f"🔁 กำลังเล่นซ้ำ: {title}")
+        else:
+            await ctx.followup.send(f"🔁 กำลังเล่นซ้ำ: {title}")
+
+        return
+
+    if song_queue.get(guild_id) and len(song_queue[guild_id]) > 0:
+        url, title = song_queue[guild_id].pop(0)
+        stream_url, _ = get_stream_url(url)
+
+        if not stream_url:
+            if isinstance(ctx, commands.Context):
+                await ctx.send("⚠️ ไม่สามารถโหลดเพลงถัดไปได้")
+            else:
+                await ctx.followup.send("⚠️ ไม่สามารถโหลดเพลงถัดไปได้")
+            return
+
+        # เพิ่มเพลงปัจจุบันเข้า previous_songs ก่อนเปลี่ยน
+        if guild_id not in previous_songs:
+            previous_songs[guild_id] = []
+        if current_song.get(guild_id):
+            previous_songs[guild_id].append(current_song[guild_id])
+        current_song[guild_id] = (url, title)
+
+        # ตรวจสอบ voice client
         voice_client = ctx.guild.voice_client
         if voice_client is None or not voice_client.is_connected():
-            if hasattr(ctx, 'author') and ctx.author.voice:
+            if ctx.author.voice:
                 voice_client = await ctx.author.voice.channel.connect()
-            elif hasattr(ctx, 'user') and ctx.user.voice:
-                voice_client = await ctx.user.voice.channel.connect()
             else:
-                try:
-                    if isinstance(ctx, commands.Context):
-                        await ctx.send("❗ คุณต้องอยู่ในห้องเสียงก่อนเล่นเพลง")
-                    else:
-                        await ctx.followup.send("❗ คุณต้องอยู่ในห้องเสียงก่อนเล่นเพลง")
-                except discord.errors.NotFound:
-                    pass
+                if isinstance(ctx, commands.Context):
+                    await ctx.send("❗ กรุณาเข้าห้องเสียงก่อน")
+                else:
+                    await ctx.followup.send("❗ กรุณาเข้าห้องเสียงก่อน")
                 return
 
         source = discord.FFmpegPCMAudio(stream_url)
         voice_client.play(source, after=lambda e: bot.loop.create_task(play_next(ctx)))
-        try:
-            if isinstance(ctx, commands.Context):
-                await ctx.send(f"🔁 กำลังเล่นซ้ำ: {title}")
-            else:
-                await ctx.followup.send(f"🔁 กำลังเล่นซ้ำ: {title}")
-        except discord.errors.NotFound:
-            pass
-        return
+
+        if isinstance(ctx, commands.Context):
+            await ctx.send(f"🎶 กำลังเล่น: {title}")
+        else:
+            await ctx.followup.send(f"🎶 กำลังเล่น: {title}")
+
+    else:
+        voice_client = ctx.guild.voice_client
+        if voice_client and voice_client.is_connected():
+            await voice_client.disconnect()
+
+        if isinstance(ctx, commands.Context):
+            await ctx.send("คิวเพลงหมดแล้ว บอทออกจากห้องเสียง")
+
+        current_song.pop(guild_id, None)
 
 
 class AddSongModal(Modal, title="เพิ่มเพลง"):
@@ -110,48 +150,29 @@ class AddSongModal(Modal, title="เพิ่มเพลง"):
         url = self.url_input.value
         guild_id = interaction.guild.id
 
-        # ✅ ตรวจสอบว่าเป็น YouTube URL 
-        if not url.startswith(("https://youtube.com",  "https://www.youtube.com",  "https://youtu.be")): 
-            try:
-                return await interaction.followup.send("⚠️ รองรับเฉพาะลิงก์ YouTube", ephemeral=True)
-            except discord.errors.NotFound:
-                print("❌ Interaction หมดอายุ")
-                return
-
-        # ✅ Defer หากยังไม่ respond
+        # ✅ ตรวจสอบและ defer ก่อนใช้งาน
         if not interaction.response.is_done():
             await interaction.response.defer(ephemeral=True)
         else:
+            await interaction.followup.send("⚠️ การโต้ตอบหมดอายุแล้ว", ephemeral=True)
             return
 
-        # ✅ โหลดเพลงใน background task
-        asyncio.create_task(self.add_song_task(interaction, url, guild_id))
-
-    @staticmethod
-    async def add_song_task(interaction, url, guild_id):
         stream_url, title = get_stream_url(url)
         if not stream_url:
-            try:
-                await interaction.followup.send("⚠️ ไม่สามารถโหลดเพลงได้", ephemeral=True)
-            except discord.errors.NotFound:
-                print("❌ Interaction หมดอายุขณะโหลดเพลง")
-            return
+            return await interaction.followup.send("⚠️ ไม่สามารถโหลดเพลงได้", ephemeral=True)
 
         if guild_id not in song_queue:
             song_queue[guild_id] = []
-        song_queue[guild_id].append((url, title))
 
-        try:
-            await interaction.followup.send(f"📥 เพิ่มเข้าในคิว: {title}", ephemeral=True)
-        except discord.errors.NotFound:
-            print("❌ Interaction หมดอายุหลังโหลดเพลง")
+        song_queue[guild_id].append((url, title))
+        await interaction.followup.send(f"📥 เพิ่มเข้าในคิว: {title}", ephemeral=True)
 
         voice_client = interaction.guild.voice_client
         if not voice_client or not voice_client.is_connected():
             if interaction.user.voice:
                 voice_client = await interaction.user.voice.channel.connect()
             else:
-                return
+                return await interaction.followup.send("❗ คุณต้องอยู่ในห้องเสียงก่อน", ephemeral=True)
 
         if not voice_client.is_playing() and not voice_client.is_paused():
             await play_next(interaction)
@@ -224,10 +245,11 @@ class FullCommandButtonView(View):
     @discord.ui.button(label="ย้อนกลับ", style=discord.ButtonStyle.grey, emoji="⏮️", row=1)
     async def back_button(self, interaction: discord.Interaction, button: Button):
         if interaction.user != self.ctx.author:
-            await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ใช้งานปุ่มนี้", ephemeral=True)
+            await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ใช้งานปุ่มนี้ กรุณาพิมพ์คำสั่ง  !p  เพิ่มเริ่มใช้งาน", ephemeral=True)
             return
 
         guild_id = interaction.guild.id
+
         if guild_id not in previous_songs or len(previous_songs[guild_id]) < 2:
             return await interaction.response.send_message("❗ ไม่มีเพลงที่ย้อนกลับได้", ephemeral=True)
 
@@ -247,8 +269,7 @@ class FullCommandButtonView(View):
             voice_client.stop()
 
         source = discord.FFmpegPCMAudio(stream_url)
-        voice_client.play(source, after=lambda e: bot.loop.create_task(play_next(interaction)))
-
+        voice_client.play(source, after=lambda e: self.ctx.bot.loop.create_task(play_next(interaction)))
         previous_songs[guild_id].append((prev_url, prev_title))
         await interaction.followup.send(f"⏮️ ย้อนกลับไป: {title}", ephemeral=True)
 
